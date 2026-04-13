@@ -1,0 +1,19 @@
+Simulation started at 28/03/2026 18:45:11
+----------------------------------------------------------------------
+Scenario started at 28/03/2026 18:45:11
+Scenario: TWO_TIER_WITH_EO - Policy: DDQN - #iteration: 8
+Duration: 5.0 min (warm up period: 1.0 min) - #devices: 2400
+Creating tasks...Done, 
+Creating device locations...Done.
+SimManager is starting...Done.
+...18:45:12,372 INFO  ~ Loaded [CpuBackend] backend
+18:45:13,145 INFO  ~ Number of threads used for linear algebra: 6
+18:45:13,156 WARN  ~ *********************************** CPU Feature Check Warning ***********************************
+18:45:13,156 WARN  ~ Warning: Initializing ND4J with Generic x86 binary on a CPU with AVX512 support
+18:45:13,156 WARN  ~ Using ND4J with AVX512 will improve performance. See deeplearning4j.org/cpu for more details
+18:45:13,156 WARN  ~ Or set environment variable ND4J_IGNORE_AVX=true to suppress this warning
+18:45:13,156 WARN  ~ *************************************************************************************************
+18:45:13,208 INFO  ~ Number of threads used for OpenMP BLAS: 6
+18:45:13,211 INFO  ~ Backend used: [CPU]; OS: [Linux]
+18:45:13,211 INFO  ~ Cores: [12]; Memory: [1.9GB];
+18:45:13,211 INFO  ~ Blas vendor: [OPENBLAS]

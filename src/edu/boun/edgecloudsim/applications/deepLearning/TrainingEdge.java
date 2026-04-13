@@ -30,10 +30,10 @@ public class TrainingEdge {
         boolean isTrainingForDDQN = false;
         Log.disable();
 
-        //enable console ourput and file output of this application
+        //enable console output and file output of this application
         SimLogger.enablePrintLog();
 
-        int iterationNumber = 1;
+        int iterationNumber = 2;
         String configFile = "";
         String outputFolder = "";
         String edgeDevicesFile = "";
@@ -45,6 +45,24 @@ public class TrainingEdge {
             outputFolder = args[3];
             iterationNumber = Integer.parseInt(args[4]);
         }
+	else if(args.length == 1){
+	    SimLogger.printLine("...Modified...");
+	    iterationNumber = Integer.parseInt(args[0]);
+	    configFile = "scripts/DeepEdge/config/default_config.properties";
+            applicationsFile = "scripts/DeepEdge/config/applications.xml";
+            edgeDevicesFile = "scripts/DeepEdge/config/edge_devices.xml";
+            outputFolder = "sim_results/ite" + iterationNumber;
+	    
+	    java.io.File directory = new java.io.File(outputFolder);
+	    if (!directory.exists()) {
+        	boolean success = directory.mkdirs(); // .mkdirs() creates parent folders if they are missing too
+        	if (success) {
+            	    SimLogger.printLine("Created new directory: " + outputFolder);
+        	} else {
+            	    SimLogger.printLine("Failed to create directory: " + outputFolder);
+        	}
+    	    }
+	}
         else{
             SimLogger.printLine("Simulation setting file, output folder and iteration number are not provided! Using default ones...");
             configFile = "scripts/DeepEdge/config/default_config.properties";

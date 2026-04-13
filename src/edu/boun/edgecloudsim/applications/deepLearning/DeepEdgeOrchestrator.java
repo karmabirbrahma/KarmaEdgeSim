@@ -26,6 +26,11 @@ import edu.boun.edgecloudsim.utils.SimLogger;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.nd4j.linalg.api.ndarray.INDArray;
 
+import java.util.*;
+import org.cloudbus.cloudsim.core.CloudSim;
+import edu.boun.edgecloudsim.core.SimManager;
+import edu.boun.edgecloudsim.mobility.MobilityModel;
+import edu.boun.edgecloudsim.utils.Location;
 
 public class DeepEdgeOrchestrator extends EdgeOrchestrator {
 
@@ -47,6 +52,11 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
     private double totalSizeOfActiveManTasks = 0;
     private int counter = 0;
     private final int EPISODE_SIZE = 75000;
+
+    // ==================== S-HEO MOBILITY PRE-RANKING (YOUR NOVELTY) ====================
+    private static final boolean MOBILITY_PRERANKING = false;   // false = same as DeepEdge baseline
+    private static final int HISTORY_WINDOW = 3;
+    private Map<Integer, List<Location>> userPositionHistory = new HashMap<>();
 
     public DeepEdgeOrchestrator (String _policy, String _simScenario) {
         super(_policy, _simScenario);
@@ -478,4 +488,50 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
         // Nothing to do!
     }
 
+private List<Integer> preRankServersByMobility(int deviceId, List<Integer> candidateServers) {
+    if (!MOBILITY_PRERANKING || candidateServers.isEmpty()) {
+        return candidateServers;   // flag OFF = original DeepEdge behavior
+    }
+
+    // Minimal version: only direction bonus (compiles and works)
+    MobilityModel mobilityModel = SimManager.getInstance().getMobilityModel();
+    Location currentLoc = mobilityModel.getLocation(deviceId, CloudSim.clock());
+
+    List<Location> history = userPositionHistory.getOrDefault(deviceId, new ArrayList<>());
+    history.add(currentLoc);
+    if (history.size() > HISTORY_WINDOW) history.remove(0);
+    userPositionHistory.put(deviceId, history);
+
+    if (history.size() < 2) return candidateServers;
+
+    Location prev = history.get(history.size() - 2);
+    double currentX = currentLoc.getXPos();
+    double currentY = currentLoc.getYPos();
+    double prevX = prev.getXPos();
+    double prevY = prev.getYPos();
+
+    double dx = currentX - prevX;
+    double dy = currentY - prevY;
+
+    List<ServerScore> scored = new ArrayList<>();
+    for (int serverId : candidateServers) {
+        double score = 0.0;
+        if (dx != 0 || dy != 0) {
+            double dot = dx * (0 - currentX) + dy * (0 - currentY);
+            score = (dot > 0) ? 0.3 : -0.2;
+        }
+        scored.add(new ServerScore(serverId, score));
+    }
+
+    scored.sort((a, b) -> Double.compare(a.score, b.score));
+    List<Integer> ranked = new ArrayList<>();
+    for (ServerScore s : scored) ranked.add(s.serverId);
+    return ranked;
+}
+
+private static class ServerScore {
+    int serverId;
+    double score;
+    ServerScore(int id, double s) { serverId = id; score = s; }
+}
 }
