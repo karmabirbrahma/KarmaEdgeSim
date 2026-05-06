@@ -27,6 +27,7 @@ import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.nd4j.linalg.api.ndarray.INDArray;
 
 import java.util.*;
+import java.io.*;
 import org.cloudbus.cloudsim.core.CloudSim;
 import edu.boun.edgecloudsim.core.SimManager;
 import edu.boun.edgecloudsim.mobility.MobilityModel;
@@ -57,6 +58,11 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
     private static final boolean MOBILITY_PRERANKING = false;   // false = same as DeepEdge baseline
     private static final int HISTORY_WINDOW = 3;
     private Map<Integer, List<Location>> userPositionHistory = new HashMap<>();
+
+    // ==================== OFFLINE DNN TRAINING DATA COLLECTION ====================
+    private static final String DATA_CSV_PATH = "dnn_training_data.csv";
+    private PrintWriter dataWriter;
+    private boolean isFirstWrite = true;
 
     public DeepEdgeOrchestrator (String _policy, String _simScenario) {
         super(_policy, _simScenario);
@@ -124,6 +130,9 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
                     DeepEdgeState currentState = GetFeaturesForAgent(task);
                     INDArray output = m_agent.output(currentState.getState());
                     result = output.argMax().getInt();
+			
+		    // Temporary logging for DNN training data (actual delay will be improved later)
+                    logTrainingData(task, result, 0.0, 0.0, 0.0, 0.0);
 
                     if (result == 14){
                         numberOfWanOffloadedTask++;
@@ -534,4 +543,39 @@ private static class ServerScore {
     double score;
     ServerScore(int id, double s) { serverId = id; score = s; }
 }
+
+    // ==================== OFFLINE DNN DATA LOGGING ====================
+    private void logTrainingData(Task task, int chosenServerId, 
+                                 double predictedDelay, double predictedEnergy,
+                                 double actualDelay, double actualEnergy) {
+        try {
+            if (isFirstWrite) {
+                dataWriter = new PrintWriter(new FileWriter(DATA_CSV_PATH));
+                dataWriter.println("taskId,alpha,beta,requiredCycles,dataSize,serverId," +
+                                   "queueLength,channelRate,predictedDelay,predictedEnergy," +
+                                   "actualDelay,actualEnergy");
+                isFirstWrite = false;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append(task.getCloudletId()).append(",");
+            sb.append(task.getCloudletLength()).append(",");
+            sb.append(task.getCloudletFileSize()).append(",");
+            sb.append(task.getCloudletLength()).append(",");
+            sb.append(task.getCloudletFileSize()).append(",");
+            sb.append(chosenServerId).append(",");
+            sb.append("0.0").append(",");      // queueLength placeholder
+            sb.append("1.0").append(",");      // channelRate placeholder
+            sb.append(predictedDelay).append(",");
+            sb.append(predictedEnergy).append(",");
+            sb.append(actualDelay).append(",");
+            sb.append(actualEnergy);
+
+            dataWriter.println(sb.toString());
+            dataWriter.flush();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 }
