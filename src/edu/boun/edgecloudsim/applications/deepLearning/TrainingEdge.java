@@ -1,10 +1,3 @@
-/*
- * Title: Training Application for Edge Scenarios
- *
- * Written by Baris Yamansavascilar
- *
- */
-
 package edu.boun.edgecloudsim.applications.deepLearning;
 
 

@@ -26,6 +26,9 @@ import edu.boun.edgecloudsim.utils.SimLogger;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.nd4j.linalg.api.ndarray.INDArray;
 
+import org.deeplearning4j.util.ModelSerializer;
+import org.deeplearning4j.nn.modelimport.keras.KerasModelImport;
+
 import java.util.*;
 import java.io.*;
 import org.cloudbus.cloudsim.core.CloudSim;
@@ -59,6 +62,9 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
     private static final int HISTORY_WINDOW = 3;
     private Map<Integer, List<Location>> userPositionHistory = new HashMap<>();
 
+    // ==================== OFFLINE DNN (S-HEO) ====================
+    private MultiLayerNetwork offlineDNN = null;
+
     // ==================== OFFLINE DNN TRAINING DATA COLLECTION ====================
     private static final String DATA_CSV_PATH = "dnn_training_data.csv";
     private PrintWriter dataWriter;
@@ -68,6 +74,7 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
         super(_policy, _simScenario);
     }
 
+    /*
     @Override
     public void initialize() {
         numberOfHost=SimSettings.getInstance().getNumOfEdgeHosts();
@@ -94,8 +101,42 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
 
         }
     }
+    */
 
+    //====== DNN policy ====== REALLLLLLLLLL
+    @Override
+    public void initialize() {
+        numberOfHost = SimSettings.getInstance().getNumOfEdgeHosts();
 
+        try {
+            fis1 = FIS.createFromString(FCL_definition.fclDefinition1, false);
+            fis2 = FIS.createFromString(FCL_definition.fclDefinition2, false);
+            fis3 = FIS.createFromString(FCL_definition.fclDefinition3, false);
+        } catch (RecognitionException e) {
+            SimLogger.printLine("Cannot generate FIS! Terminating simulation...");
+            e.printStackTrace();
+            System.exit(0);
+        }
+
+        if (policy.equals("DDQN")) {
+            try {
+                // Load Online DDQN (existing - unchanged)
+                final String absolutePath = "TheModel";
+                m_agent = MultiLayerNetwork.load(new File(absolutePath), false);
+
+                // === Try Keras Import for Offline DNN ===
+                String modelPath = "/home/karma/UNI/DeepEdge/EdgeCloudSim-DeepEdge/models/offline_dnn_model_keras2_final.h5";
+		SimLogger.printLine("✅ Offline DNN model from: " + modelPath);
+                offlineDNN = KerasModelImport.importKerasSequentialModelAndWeights(modelPath, false);
+
+                SimLogger.printLine("✅ Offline DNN model loaded successfully from: " + modelPath);
+
+            } catch (Exception e) {
+                SimLogger.printLine("❌ Failed to load Offline DNN model!");
+                e.printStackTrace();
+            }
+        }
+    }
     /*
      * (non-Javadoc)
      * @see edu.boun.edgecloudsim.edge_orchestrator.EdgeOrchestrator#getDeviceToOffload(edu.boun.edgecloudsim.edge_client.Task)
