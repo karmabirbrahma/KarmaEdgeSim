@@ -1,32 +1,35 @@
+import os
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.optimizers import Adam
+import tf_keras as keras 
 import joblib
 
+# Load data
 df = pd.read_csv('../dnn_training_data.csv')
-features = ['alpha', 'beta', 'requiredCycles', 'dataSize', 'serverId', 
-            'queueLength', 'channelRate']
-
+features = ['alpha', 'beta', 'requiredCycles', 'dataSize', 'serverId', 'queueLength', 'channelRate']
 X = df[features].values
 y = df[['actualDelay', 'actualEnergy']].values
-
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-model = Sequential()
-model.add(Dense(64, activation='relu', input_shape=(7,)))
-model.add(Dense(32, activation='relu'))
-model.add(Dense(2, activation='linear'))
+# Build & Train
+model = keras.Sequential([
+    keras.layers.Dense(64, activation='relu', input_dim=7),
+    keras.layers.Dense(32, activation='relu'),
+    keras.layers.Dense(2, activation='linear')
+])
+model.compile(optimizer='adam', loss='mse')
+print("Training DNN...")
+model.fit(X_scaled, y, epochs=50, batch_size=64, verbose=1)
 
-model.compile(optimizer=Adam(learning_rate=0.001), loss='mse', metrics=['mae'])
-model.fit(X_train, y_train, epochs=100, batch_size=64, validation_split=0.2, verbose=1)
+# SAVE AS CSV (Cleaner for Java to parse)
+if not os.path.exists('models'): os.makedirs('models')
 
-model.save('offline_dnn_model_keras2_final.h5', save_format='h5')
-joblib.dump(scaler, 'scaler.pkl')
+weights = model.get_weights()
+for i, w in enumerate(weights):
+    # We save as comma-separated values
+    np.savetxt(f"models/param_{i}.csv", w.flatten(), delimiter=",")
 
-print("✅ Model saved successfully with Keras 2")
+joblib.dump(scaler, 'models/scaler.pkl')
+print("✅ Weights saved as .csv files in models/")

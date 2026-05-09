@@ -108,74 +108,348 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
     public void initialize() {
         numberOfHost = SimSettings.getInstance().getNumOfEdgeHosts();
 
+        // 1. Initialize Fuzzy Inference Systems (Unchanged)
         try {
             fis1 = FIS.createFromString(FCL_definition.fclDefinition1, false);
             fis2 = FIS.createFromString(FCL_definition.fclDefinition2, false);
             fis3 = FIS.createFromString(FCL_definition.fclDefinition3, false);
         } catch (RecognitionException e) {
-            SimLogger.printLine("Cannot generate FIS! Terminating simulation...");
+            SimLogger.printLine("Cannot generate FIS!");
             e.printStackTrace();
             System.exit(0);
         }
 
+        // 2. Initialize Neural Networks
         if (policy.equals("DDQN")) {
             try {
-                // Load Online DDQN (existing - unchanged)
                 final String absolutePath = "TheModel";
                 m_agent = MultiLayerNetwork.load(new File(absolutePath), false);
 
-                // === Try Keras Import for Offline DNN ===
-                String modelPath = "/home/karma/UNI/DeepEdge/EdgeCloudSim-DeepEdge/models/offline_dnn_model_keras2_final.h5";
-		SimLogger.printLine("✅ Offline DNN model from: " + modelPath);
-                offlineDNN = KerasModelImport.importKerasSequentialModelAndWeights(modelPath, false);
+                // --- Architecture ---
+                org.deeplearning4j.nn.conf.MultiLayerConfiguration conf = new org.deeplearning4j.nn.conf.NeuralNetConfiguration.Builder()
+                    .seed(123)
+                    .list()
+                    .layer(0, new org.deeplearning4j.nn.conf.layers.DenseLayer.Builder().nIn(7).nOut(64).activation(org.nd4j.linalg.activations.Activation.RELU).build())
+                    .layer(1, new org.deeplearning4j.nn.conf.layers.DenseLayer.Builder().nIn(64).nOut(32).activation(org.nd4j.linalg.activations.Activation.RELU).build())
+                    .layer(2, new org.deeplearning4j.nn.conf.layers.OutputLayer.Builder().nIn(32).nOut(2).activation(org.nd4j.linalg.activations.Activation.IDENTITY)
+                        .lossFunction(org.nd4j.linalg.lossfunctions.LossFunctions.LossFunction.MSE).build())
+                    .build();
 
-                SimLogger.printLine("✅ Offline DNN model loaded successfully from: " + modelPath);
+                offlineDNN = new MultiLayerNetwork(conf);
+                offlineDNN.init();
+
+                // --- Manual CSV Injection ---
+                String path = "models/models/"; // Adjust if you moved files to models/
+                if (!new File(path + "param_0.csv").exists()) path = "models/";
+                
+                SimLogger.printLine("😊 Loading CSV weights from: " + path);
+
+                offlineDNN.getLayer(0).setParam("W", loadCSV(path + "param_0.csv", 7, 64));
+                offlineDNN.getLayer(0).setParam("b", loadCSV(path + "param_1.csv", 1, 64));
+                offlineDNN.getLayer(1).setParam("W", loadCSV(path + "param_2.csv", 64, 32));
+                offlineDNN.getLayer(1).setParam("b", loadCSV(path + "param_3.csv", 1, 32));
+                offlineDNN.getLayer(2).setParam("W", loadCSV(path + "param_4.csv", 32, 2));
+                offlineDNN.getLayer(2).setParam("b", loadCSV(path + "param_5.csv", 1, 2));
+
+                SimLogger.printLine("✅ S-HEO Offline DNN Loaded Successfully!");
 
             } catch (Exception e) {
-                SimLogger.printLine("❌ Failed to load Offline DNN model!");
+                SimLogger.printLine("❌ Failed to initialize models!");
                 e.printStackTrace();
             }
         }
     }
+
+    // Helper Method to read flat CSV into NDArray
+    private org.nd4j.linalg.api.ndarray.INDArray loadCSV(String file, int rows, int cols) throws Exception {
+        double[] data = new double[rows * cols];
+        java.util.Scanner sc = new java.util.Scanner(new File(file));
+        int i = 0;
+        while (sc.hasNextDouble() && i < data.length) {
+            data[i++] = sc.nextDouble();
+        }
+        sc.close();
+        return org.nd4j.linalg.factory.Nd4j.create(data).reshape(rows, cols);
+    }    
     /*
      * (non-Javadoc)
      * @see edu.boun.edgecloudsim.edge_orchestrator.EdgeOrchestrator#getDeviceToOffload(edu.boun.edgecloudsim.edge_client.Task)
      *
      * It is assumed that the edge orchestrator app is running on the edge devices in a distributed manner
      */
+    // @Override
+    // public int getDeviceToOffload(Task task) {
+    //     int result = 0;
+
+    //     if(simScenario.equals("SINGLE_TIER")){
+    //         result = SimSettings.GENERIC_EDGE_DEVICE_ID;
+    //     }
+    //     else if(simScenario.equals("TWO_TIER_WITH_EO")){
+
+    //         if(policy.equals("DDQN")){
+    //             counter++;
+    //             if (counter > EPISODE_SIZE){
+    //                 Task dummyTask = new Task(0, 0, 0, 0, 128, 128, new UtilizationModelFull(), new UtilizationModelFull(), new UtilizationModelFull());
+    //                 double wanDelay = SimManager.getInstance().getNetworkModel().getUploadDelay(task.getMobileDeviceId(),
+    //                         SimSettings.CLOUD_DATACENTER_ID, dummyTask /* 1 Mbit */);
+    //                 double wanBW = (wanDelay == 0) ? 0 : (1 / wanDelay); /* Mbps */
+    //                 if(wanBW > 6)
+    //                     result = SimSettings.CLOUD_DATACENTER_ID;
+    //                 else
+    //                     result = SimSettings.GENERIC_EDGE_DEVICE_ID;
+    //             }else{
+    //                 // ========================================================================
+    //                 // S-HEO HYBRID LOGIC INTEGRATION
+    //                 // ========================================================================
+                    
+    //                 // 1. Gather Candidate Servers (All Edge Hosts + Cloud)
+    //                 List<Integer> candidateServers = new ArrayList<>();
+    //                 for(int i=0; i<numberOfHost; i++) {
+    //                     candidateServers.add(i);
+    //                 }
+    //                 candidateServers.add(SimSettings.CLOUD_DATACENTER_ID); // Cloud is usually ID 14 or similar
+                    
+    //                 // 2. MOBILITY PRE-RANKING
+    //                 // This uses your custom history vector to rank servers based on user movement
+    //                 List<Integer> rankedServers = preRankServersByMobility(task.getMobileDeviceId(), candidateServers);
+                    
+    //                 // Take the top 3 servers to reduce signaling overhead
+    //                 int topK = Math.min(3, rankedServers.size());
+    //                 List<Integer> topServers = rankedServers.subList(0, topK);
+                    
+    //                 // 3. OFFLINE DNN PREDICTION
+    //                 double bestPredictedDelay = Double.MAX_VALUE;
+    //                 int bestServerId = SimSettings.CLOUD_DATACENTER_ID; // Fallback to cloud
+                    
+    //                 if (offlineDNN != null) {
+    //                     for (int serverId : topServers) {
+    //                         try {
+    //                             // Extract the 7 features for the DNN
+    //                             double alpha = task.getCloudletLength(); // Using length as a proxy for alpha/cycles
+    //                             double beta = task.getCloudletFileSize(); // Using file size as a proxy for beta/dataSize
+    //                             double requiredCycles = task.getCloudletLength();
+    //                             double dataSize = task.getCloudletFileSize() + task.getCloudletOutputSize();
+                                
+    //                             // Estimated network stats (replaces real-time signaling overhead)
+    //                             double queueLength = 0.0; // Estimate or get from local cache
+    //                             double channelRate = 1.0; // Estimate or get from local cache
+                                
+    //                             double[] rawFeatures = new double[] { 
+    //                                 alpha, beta, requiredCycles, dataSize, serverId, queueLength, channelRate 
+    //                             };
+                                
+    //                             INDArray inputVector = org.nd4j.linalg.factory.Nd4j.create(rawFeatures).reshape(1, 7);
+    //                             INDArray prediction = offlineDNN.output(inputVector);
+                                
+    //                             double predictedDelay = prediction.getDouble(0);
+    //                             double predictedEnergy = prediction.getDouble(1);
+                                
+    //                             // SimLogger.printLine("DNN predicts Server " + serverId + " -> Delay: " + predictedDelay);
+                                
+    //                             // Find the server with the lowest predicted delay
+    //                             if (predictedDelay < bestPredictedDelay) {
+    //                                 bestPredictedDelay = predictedDelay;
+    //                                 bestServerId = serverId;
+    //                             }
+    //                         } catch (Exception e) {
+    //                             SimLogger.printLine("⚠️ DNN Prediction failed for server " + serverId);
+    //                         }
+    //                     }
+    //                 }
+
+    //                 // 4. FINAL DECISION
+    //                 // S-HEO decides to use the DNN's best server. 
+    //                 // (Alternatively, you can pass this bestServerId to the DDQN agent as a state feature)
+    //                 result = bestServerId;
+                    
+    //                 // Logging for training/metrics
+    //                 logTrainingData(task, result, bestPredictedDelay, 0.0, 0.0, 0.0);
+
+    //                 if (result == SimSettings.CLOUD_DATACENTER_ID){
+    //                     numberOfWanOffloadedTask++;
+    //                 }
+    //                 else if(task.getSubmittedLocation().getServingWlanId() == result){
+    //                     numberOfWlanOffloadedTask++;
+    //                 }
+    //                 else{
+    //                     numberOfManOffloadedTask++;
+    //                 }
+    //                 // ========================================================================
+    //             }
+
+    //         }
+    //             // ... [Keep your existing FUZZY and NETWORK_BASED else-if blocks exactly as they are below this] ...
+    //             else if(policy.equals("FUZZY_COMPETITOR")){
+    //                 double utilization = edgeUtilization;
+    //                 double cpuSpeed = (double)100 - utilization;
+    //                 double videoExecution = SimSettings.getInstance().getTaskLookUpTable()[task.getTaskType()][12];
+    //                 double dataSize = task.getCloudletFileSize() + task.getCloudletOutputSize();
+    //                 double normalizedDataSize = Math.min(MAX_DATA_SIZE, dataSize)/MAX_DATA_SIZE;
+
+    //                 // Set inputs
+    //                 fis3.setVariable("wan_bw", wanBW);
+    //                 fis3.setVariable("cpu_speed", cpuSpeed);
+    //                 fis3.setVariable("video_execution", videoExecution);
+    //                 fis3.setVariable("data_size", normalizedDataSize);
+
+    //                 // Evaluate
+    //                 fis3.evaluate();
+
+    //                 /*
+    //                 SimLogger.printLine("########################################");
+    //                 SimLogger.printLine("wan bw: " + wanBW);
+    //                 SimLogger.printLine("cpu_speed: " + cpuSpeed);
+    //                 SimLogger.printLine("video_execution: " + videoExecution);
+    //                 SimLogger.printLine("data_size: " + normalizedDataSize);
+    //                 SimLogger.printLine("offload_decision: " + fis2.getVariable("offload_decision").getValue());
+    //                 SimLogger.printLine("########################################");
+    //                 */
+
+    //                 if(fis3.getVariable("offload_decision").getValue() > 50)
+    //                     result = SimSettings.CLOUD_DATACENTER_ID;
+    //                 else
+    //                     result = SimSettings.GENERIC_EDGE_DEVICE_ID;
+    //             }
+
+
+    //             else if(policy.equals("NETWORK_BASED")){
+    //                 if(wanBW > 6)
+    //                     result = SimSettings.CLOUD_DATACENTER_ID;
+    //                 else
+    //                     result = SimSettings.GENERIC_EDGE_DEVICE_ID;
+    //             }
+    //             else if(policy.equals("UTILIZATION_BASED")){
+    //                 double utilization = edgeUtilization;
+    //                 if(utilization > 80)
+    //                     result = SimSettings.CLOUD_DATACENTER_ID;
+    //                 else
+    //                     result = SimSettings.GENERIC_EDGE_DEVICE_ID;
+    //             }
+    //             else if(policy.equals("HYBRID")){
+    //                 double utilization = edgeUtilization;
+    //                 if(wanBW > 6 && utilization > 80)
+    //                     result = SimSettings.CLOUD_DATACENTER_ID;
+    //                 else
+    //                     result = SimSettings.GENERIC_EDGE_DEVICE_ID;
+    //             }
+    //             else {
+    //                 SimLogger.printLine("Unknow edge orchestrator policy! Terminating simulation...");
+    //                 System.exit(0);
+    //             }
+    //         //}
+
+    //         }
+    //     else {
+    //         SimLogger.printLine("Unknow simulation scenario! Terminating simulation...");
+    //         System.exit(0);
+    //     }
+
+    //     return result;
+    // }
+
+    private boolean simScene = false;
+    private boolean hasPrintedPolicy = false;
+    private boolean ultiSHO = false;
+    private boolean isFuzzy = false;
+    //===========S-HEO LOGIC HERE=============
     @Override
     public int getDeviceToOffload(Task task) {
         int result = 0;
-
-        //RODO: return proper host ID
-
 
         if(simScenario.equals("SINGLE_TIER")){
             result = SimSettings.GENERIC_EDGE_DEVICE_ID;
         }
         else if(simScenario.equals("TWO_TIER_WITH_EO")){
+            if(!simScene){
+                SimLogger.printLine("\n🚀 DEBUG: Checking for Sim Check");
+                simScene = true;
+            }
+            // --- GLOBALS FOR ALL POLICIES TO PREVENT COMPILATION ERRORS ---
+            double edgeUtilization = SimManager.getInstance().getEdgeServerManager().getAvgUtilization();
+            Task dummyTask = new Task(0, 0, 0, 0, 128, 128, new UtilizationModelFull(), new UtilizationModelFull(), new UtilizationModelFull());
+            double wanDelay = SimManager.getInstance().getNetworkModel().getUploadDelay(task.getMobileDeviceId(),
+                    SimSettings.CLOUD_DATACENTER_ID, dummyTask /* 1 Mbit */);
+            double wanBW = (wanDelay == 0) ? 0 : (1 / wanDelay); /* Mbps */
+            // --------------------------------------------------------------
 
             if(policy.equals("DDQN")){
+
+                if (!hasPrintedPolicy) {
+                    SimLogger.printLine("\n🚀 DEBUG: Stoping for Policy check");
+                    hasPrintedPolicy = true; 
+                }
+
                 counter++;
                 if (counter > EPISODE_SIZE){
-                    //System.out.println("Counter: "+counter);
-                    Task dummyTask = new Task(0, 0, 0, 0, 128, 128, new UtilizationModelFull(), new UtilizationModelFull(), new UtilizationModelFull());
-                    double wanDelay = SimManager.getInstance().getNetworkModel().getUploadDelay(task.getMobileDeviceId(),
-                            SimSettings.CLOUD_DATACENTER_ID, dummyTask /* 1 Mbit */);
-                    double wanBW = (wanDelay == 0) ? 0 : (1 / wanDelay); /* Mbps */
                     if(wanBW > 6)
                         result = SimSettings.CLOUD_DATACENTER_ID;
                     else
                         result = SimSettings.GENERIC_EDGE_DEVICE_ID;
                 }else{
+                    // ========================================================================
+                    // S-HEO TRUE HYBRID LOGIC (Mobility + DNN + DDQN)
+                    // ========================================================================
+                    if(!ultiSHO){
+                        SimLogger.printLine("\n🚀 DEBUG: Reach here means SHO");
+                        ultiSHO = true;
+                    }
+                    // 1. MOBILITY PRE-RANKING
+                    List<Integer> candidateServers = new ArrayList<>();
+                    for(int i=0; i<numberOfHost; i++) candidateServers.add(i);
+                    candidateServers.add(SimSettings.CLOUD_DATACENTER_ID);
+                    
+                    List<Integer> rankedServers = preRankServersByMobility(task.getMobileDeviceId(), candidateServers);
+                    int topK = Math.min(3, rankedServers.size());
+                    List<Integer> topServers = rankedServers.subList(0, topK);
+                    
+                    // 2. OFFLINE DNN PREDICTION (Find the "Safe" Fallback)
+                    double bestPredictedDelay = Double.MAX_VALUE;
+                    int dnnBestServer = SimSettings.CLOUD_DATACENTER_ID; 
+                    
+                    if (offlineDNN != null) {
+                        for (int serverId : topServers) {
+                            try {
+                                double alpha = task.getCloudletLength();
+                                double beta = task.getCloudletFileSize();
+                                double requiredCycles = task.getCloudletLength();
+                                double dataSize = task.getCloudletFileSize() + task.getCloudletOutputSize();
+                                double queueLength = 0.0; // Local estimate
+                                double channelRate = 1.0; // Local estimate
+                                
+                                double[] rawFeatures = new double[] { alpha, beta, requiredCycles, dataSize, serverId, queueLength, channelRate };
+                                INDArray inputVector = org.nd4j.linalg.factory.Nd4j.create(rawFeatures).reshape(1, 7);
+                                INDArray prediction = offlineDNN.output(inputVector);
+                                
+                                double predictedDelay = prediction.getDouble(0);
+                                if (predictedDelay < bestPredictedDelay) {
+                                    bestPredictedDelay = predictedDelay;
+                                    dnnBestServer = serverId;
+                                }
+                            } catch (Exception e) {
+                                // Silent catch to prevent console spam
+                            }
+                        }
+                    }
+
+                    // 3. ONLINE DDQN PROPOSAL
                     DeepEdgeState currentState = GetFeaturesForAgent(task);
                     INDArray output = m_agent.output(currentState.getState());
-                    result = output.argMax().getInt();
-			
-		    // Temporary logging for DNN training data (actual delay will be improved later)
-                    logTrainingData(task, result, 0.0, 0.0, 0.0, 0.0);
+                    int ddqnProposedServer = output.argMax().getInt();
 
-                    if (result == 14){
+                    // 4. S-HEO DECISION ENFORCEMENT
+                    // If DDQN's choice is in our top 3 mobility-safe list, we allow it.
+                    // If not, we override with the DNN's recommended server to prevent task failure.
+                    if (topServers.contains(ddqnProposedServer) || ddqnProposedServer == SimSettings.CLOUD_DATACENTER_ID) {
+                        result = ddqnProposedServer;
+                    } else {
+                        result = dnnBestServer;
+                    }
+                    
+                    // Logging
+                    logTrainingData(task, result, bestPredictedDelay, 0.0, 0.0, 0.0);
+
+                    // Standard DeepEdge Counters
+                    if (result == SimSettings.CLOUD_DATACENTER_ID){
                         numberOfWanOffloadedTask++;
                     }
                     else if(task.getSubmittedLocation().getServingWlanId() == result){
@@ -184,172 +458,58 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
                     else{
                         numberOfManOffloadedTask++;
                     }
+                    // ========================================================================
                 }
-
-            }else{
-
-                int bestRemoteEdgeHostIndex = 0;
-                int nearestEdgeHostIndex = 0;
-                double nearestEdgeUtilization = 0;
-
-                //dummy task to simulate a task with 1 Mbit file size to upload and download
-                Task dummyTask = new Task(0, 0, 0, 0, 128, 128, new UtilizationModelFull(), new UtilizationModelFull(), new UtilizationModelFull());
-
-                double wanDelay = SimManager.getInstance().getNetworkModel().getUploadDelay(task.getMobileDeviceId(),
-                        SimSettings.CLOUD_DATACENTER_ID, dummyTask /* 1 Mbit */);
-                double wanBW = (wanDelay == 0) ? 0 : (1 / wanDelay); /* Mbps */
-
-                double manDelay = SimManager.getInstance().getNetworkModel().getUploadDelay(SimSettings.GENERIC_EDGE_DEVICE_ID,
-                        SimSettings.GENERIC_EDGE_DEVICE_ID, dummyTask /* 1 Mbit */);
-
-                double edgeUtilization = SimManager.getInstance().getEdgeServerManager().getAvgUtilization();
-
-                //finding least loaded neighbor edge host
-                double bestRemoteEdgeUtilization = 100; //start with max value
-                for(int hostIndex=0; hostIndex<numberOfHost; hostIndex++){
-                    List<EdgeVM> vmArray = SimManager.getInstance().getEdgeServerManager().getVmList(hostIndex);
-
-                    double totalUtlization=0;
-                    for(int vmIndex=0; vmIndex<vmArray.size(); vmIndex++){
-                        totalUtlization += vmArray.get(vmIndex).getCloudletScheduler().getTotalUtilizationOfCpu(CloudSim.clock());
-                    }
-
-                    double avgUtilization = (totalUtlization / (double)(vmArray.size()));
-
-
-
-                    EdgeHost host = (EdgeHost)(vmArray.get(0).getHost()); //all VMs have the same host
-                    if(host.getLocation().getServingWlanId() == task.getSubmittedLocation().getServingWlanId()){
-                        nearestEdgeUtilization = totalUtlization / (double)(vmArray.size());
-                        nearestEdgeHostIndex = hostIndex;
-                    }
-                    else if(avgUtilization < bestRemoteEdgeUtilization){
-                        bestRemoteEdgeHostIndex = hostIndex;
-                        bestRemoteEdgeUtilization = avgUtilization;
-                    }
-                }
-
-                if(policy.equals("FUZZY_BASED")){
-                    int bestHostIndex = nearestEdgeHostIndex;
-                    double bestHostUtilization = nearestEdgeUtilization;
-
-                    // Set inputs
-                    fis2.setVariable("man_delay", manDelay);
-                    fis2.setVariable("nearest_edge_uitl", nearestEdgeUtilization);
-                    fis2.setVariable("best_remote_edge_uitl", bestRemoteEdgeUtilization);
-
-                    // Evaluate
-                    fis2.evaluate();
-
-		        /*
-		        SimLogger.printLine("########################################");
-		        SimLogger.printLine("man bw: " + manBW);
-		        SimLogger.printLine("nearest_edge_uitl: " + nearestEdgeUtilization);
-		        SimLogger.printLine("best_remote_edge_uitl: " + bestRemoteEdgeHostUtilization);
-		        SimLogger.printLine("offload_decision: " + fis2.getVariable("offload_decision").getValue());
-		        SimLogger.printLine("########################################");
-				*/
-
-                    if(fis2.getVariable("offload_decision").getValue() > 50){
-                        bestHostIndex = bestRemoteEdgeHostIndex;
-                        bestHostUtilization = bestRemoteEdgeUtilization;
-                    }
-
-                    double delay_sensitivity = SimSettings.getInstance().getTaskLookUpTable()[task.getTaskType()][12];
-
-                    // Set inputs
-                    fis1.setVariable("wan_bw", wanBW);
-                    fis1.setVariable("task_size", task.getCloudletLength());
-                    fis1.setVariable("delay_sensitivity", delay_sensitivity);
-                    fis1.setVariable("avg_edge_util", bestHostUtilization);
-
-                    // Evaluate
-                    fis1.evaluate();
-
-		        /*
-		        SimLogger.printLine("########################################");
-		        SimLogger.printLine("wan bw: " + wanBW);
-		        SimLogger.printLine("task_size: " + task.getCloudletLength());
-		        SimLogger.printLine("delay_sensitivity: " + delay_sensitivity);
-		        SimLogger.printLine("avg_edge_util: " + bestHostUtilization);
-		        SimLogger.printLine("offload_decision: " + fis1.getVariable("offload_decision").getValue());
-		        SimLogger.printLine("########################################");
-		        */
-
-                    if(fis1.getVariable("offload_decision").getValue() > 50){
-                        result = SimSettings.CLOUD_DATACENTER_ID;
-                    }
-                    else{
-                        result = bestHostIndex;
-                    }
-                }
-                else if(policy.equals("FUZZY_COMPETITOR")){
-                    double utilization = edgeUtilization;
-                    double cpuSpeed = (double)100 - utilization;
-                    double videoExecution = SimSettings.getInstance().getTaskLookUpTable()[task.getTaskType()][12];
-                    double dataSize = task.getCloudletFileSize() + task.getCloudletOutputSize();
-                    double normalizedDataSize = Math.min(MAX_DATA_SIZE, dataSize)/MAX_DATA_SIZE;
-
-                    // Set inputs
-                    fis3.setVariable("wan_bw", wanBW);
-                    fis3.setVariable("cpu_speed", cpuSpeed);
-                    fis3.setVariable("video_execution", videoExecution);
-                    fis3.setVariable("data_size", normalizedDataSize);
-
-                    // Evaluate
-                    fis3.evaluate();
-
-		        /*
-		        SimLogger.printLine("########################################");
-		        SimLogger.printLine("wan bw: " + wanBW);
-		        SimLogger.printLine("cpu_speed: " + cpuSpeed);
-		        SimLogger.printLine("video_execution: " + videoExecution);
-		        SimLogger.printLine("data_size: " + normalizedDataSize);
-		        SimLogger.printLine("offload_decision: " + fis2.getVariable("offload_decision").getValue());
-		        SimLogger.printLine("########################################");
-				*/
-
-                    if(fis3.getVariable("offload_decision").getValue() > 50)
-                        result = SimSettings.CLOUD_DATACENTER_ID;
-                    else
-                        result = SimSettings.GENERIC_EDGE_DEVICE_ID;
-                }
-
-
-                else if(policy.equals("NETWORK_BASED")){
-                    if(wanBW > 6)
-                        result = SimSettings.CLOUD_DATACENTER_ID;
-                    else
-                        result = SimSettings.GENERIC_EDGE_DEVICE_ID;
-                }
-                else if(policy.equals("UTILIZATION_BASED")){
-                    double utilization = edgeUtilization;
-                    if(utilization > 80)
-                        result = SimSettings.CLOUD_DATACENTER_ID;
-                    else
-                        result = SimSettings.GENERIC_EDGE_DEVICE_ID;
-                }
-                else if(policy.equals("HYBRID")){
-                    double utilization = edgeUtilization;
-                    if(wanBW > 6 && utilization > 80)
-                        result = SimSettings.CLOUD_DATACENTER_ID;
-                    else
-                        result = SimSettings.GENERIC_EDGE_DEVICE_ID;
-                }
-                else {
-                    SimLogger.printLine("Unknow edge orchestrator policy! Terminating simulation...");
-                    System.exit(0);
-                }
-            }
 
             }
+            // ==================== COMPETITOR POLICIES ====================
+            else if(policy.equals("FUZZY_COMPETITOR")){
+                if (!isFuzzy) {
+                    SimLogger.printLine("\n🚀 DEBUG: FUZZY as well running");
+                    isFuzzy = true; 
+                }
+                double utilization = edgeUtilization;
+                double cpuSpeed = (double)100 - utilization;
+                double videoExecution = SimSettings.getInstance().getTaskLookUpTable()[task.getTaskType()][12];
+                double dataSize = task.getCloudletFileSize() + task.getCloudletOutputSize();
+                double normalizedDataSize = Math.min(MAX_DATA_SIZE, dataSize)/MAX_DATA_SIZE;
+
+                fis3.setVariable("wan_bw", wanBW);
+                fis3.setVariable("cpu_speed", cpuSpeed);
+                fis3.setVariable("video_execution", videoExecution);
+                fis3.setVariable("data_size", normalizedDataSize);
+                fis3.evaluate();
+
+                if(fis3.getVariable("offload_decision").getValue() > 50)
+                    result = SimSettings.CLOUD_DATACENTER_ID;
+                else
+                    result = SimSettings.GENERIC_EDGE_DEVICE_ID;
+            }
+            else if(policy.equals("NETWORK_BASED")){
+                if(wanBW > 6) result = SimSettings.CLOUD_DATACENTER_ID;
+                else result = SimSettings.GENERIC_EDGE_DEVICE_ID;
+            }
+            else if(policy.equals("UTILIZATION_BASED")){
+                if(edgeUtilization > 80) result = SimSettings.CLOUD_DATACENTER_ID;
+                else result = SimSettings.GENERIC_EDGE_DEVICE_ID;
+            }
+            else if(policy.equals("HYBRID")){ // Note: This is the old baseline Hybrid, not S-HEO
+                if(wanBW > 6 && edgeUtilization > 80) result = SimSettings.CLOUD_DATACENTER_ID;
+                else result = SimSettings.GENERIC_EDGE_DEVICE_ID;
+            }
+            else {
+                SimLogger.printLine("Unknown edge orchestrator policy! Terminating simulation...");
+                System.exit(0);
+            }
+        }
         else {
-            SimLogger.printLine("Unknow simulation scenario! Terminating simulation...");
+            SimLogger.printLine("Unknown simulation scenario! Terminating simulation...");
             System.exit(0);
         }
 
         return result;
     }
+
 
     public DeepEdgeState GetFeaturesForAgent(Task task){
         Task dummyTask = new Task(0, 0, 0, 0, 128, 128, new UtilizationModelFull(), new UtilizationModelFull(), new UtilizationModelFull());

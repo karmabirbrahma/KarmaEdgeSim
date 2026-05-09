@@ -1,16 +1,3 @@
-/*
- * Title:        EdgeCloudSim - Simulation Settings class
- * 
- * Description: 
- * SimSettings provides system wide simulation settings. It is a
- * singleton class and provides all necessary information to other modules.
- * If you need to use another simulation setting variable in your
- * config file, add related getter methot in this class.
- *               
- * Licence:      GPL - http://www.gnu.org/copyleft/gpl.html
- * Copyright (c) 2017, Bogazici University, Istanbul, Turkey
- */
-
 package edu.boun.edgecloudsim.core;
 
 import java.io.File;
