@@ -156,64 +156,95 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
             double wanDelay = SimManager.getInstance().getNetworkModel().getUploadDelay(task.getMobileDeviceId(),
                     SimSettings.CLOUD_DATACENTER_ID, dummyTask);
             double wanBW = (wanDelay == 0) ? 0 : (1 / wanDelay); 
-
+            
             if(policy.equals("DDQN")){
                 counter++;
                 if (counter > EPISODE_SIZE){
                     if(wanBW > 6) result = SimSettings.CLOUD_DATACENTER_ID;
                     else result = SimSettings.GENERIC_EDGE_DEVICE_ID;
                 } else {
-                    List<Integer> candidateServers = new ArrayList<>();
-                    for(int i=0; i<numberOfHost; i++) candidateServers.add(i);
-                    candidateServers.add(SimSettings.CLOUD_DATACENTER_ID);
-                    
-                    List<Integer> rankedServers = preRankServersByMobility(task.getMobileDeviceId(), candidateServers);
-                    int topK = Math.min(3, rankedServers.size());
-                    List<Integer> topServers = rankedServers.subList(0, topK);
-                    
-                    double bestPredictedDelay = Double.MAX_VALUE;
-                    int dnnBestServer = SimSettings.CLOUD_DATACENTER_ID; 
-                    
-                    // NEW 5 NON-REDUNDANT FEATURES
-                    double requiredCycles = task.getCloudletLength();
-                    double dataSize = task.getCloudletFileSize() + task.getCloudletOutputSize();
-
-                    if (offlineDNN != null) {
-                        for (int serverId : topServers) {
-                            try {
-                                double[] rawFeatures = new double[] { requiredCycles, dataSize, serverId, edgeUtilization, wanBW };
-                                INDArray inputVector = org.nd4j.linalg.factory.Nd4j.create(rawFeatures).reshape(1, 5);
-                                INDArray prediction = offlineDNN.output(inputVector);
-                                
-                                double predictedDelay = prediction.getDouble(0); 
-                                if (predictedDelay < bestPredictedDelay) {
-                                    bestPredictedDelay = predictedDelay;
-                                    dnnBestServer = serverId;
-                                }
-                            } catch (Exception e) {}
-                        }
-                    }
-
+                    // =========================================================
+                    // TEMPORARY "PURE DDQN" DATA COLLECTOR
+                    // We are letting the agent run free to collect rich data!
+                    // =========================================================
+                    // 1. Ask the DDQN Agent
                     DeepEdgeState currentState = GetFeaturesForAgent(task);
                     INDArray output = m_agent.output(currentState.getState());
                     int ddqnProposedServer = output.argMax().getInt();
-
-                    if (topServers.contains(ddqnProposedServer) || ddqnProposedServer == SimSettings.CLOUD_DATACENTER_ID) {
-                        result = ddqnProposedServer;
-                    } else {
-                        result = dnnBestServer;
-                    }
                     
-                    // Log to Memory
+                    // 2. Trust the DDQN completely (No S-HEO safety net for now)
+                    result = ddqnProposedServer;
+                    
+                    // 3. Log the rich 5 features to memory! (predictedDelay is 0.0 for now)
+                    double requiredCycles = task.getCloudletLength();
+                    double dataSize = task.getCloudletFileSize() + task.getCloudletOutputSize();
                     double[] featuresToSave = new double[] { requiredCycles, dataSize, result, edgeUtilization, wanBW };
-                    taskLog.add(new TaskRecord(task, featuresToSave, bestPredictedDelay, result));
+                    
+                    taskLog.add(new TaskRecord(task, featuresToSave, 0.0, result));
 
+                    // 4. Standard Counters
                     if (result == SimSettings.CLOUD_DATACENTER_ID) numberOfWanOffloadedTask++;
                     else if(task.getSubmittedLocation().getServingWlanId() == result) numberOfWlanOffloadedTask++;
                     else numberOfManOffloadedTask++;
                 }
-
             }
+            // if(policy.equals("DDQN")){
+            //     counter++;
+            //     if (counter > EPISODE_SIZE){
+            //         if(wanBW > 6) result = SimSettings.CLOUD_DATACENTER_ID;
+            //         else result = SimSettings.GENERIC_EDGE_DEVICE_ID;
+            //     } else {
+            //         List<Integer> candidateServers = new ArrayList<>();
+            //         for(int i=0; i<numberOfHost; i++) candidateServers.add(i);
+            //         candidateServers.add(SimSettings.CLOUD_DATACENTER_ID);
+                    
+            //         List<Integer> rankedServers = preRankServersByMobility(task.getMobileDeviceId(), candidateServers);
+            //         int topK = Math.min(3, rankedServers.size());
+            //         List<Integer> topServers = rankedServers.subList(0, topK);
+                    
+            //         double bestPredictedDelay = Double.MAX_VALUE;
+            //         int dnnBestServer = SimSettings.CLOUD_DATACENTER_ID; 
+                    
+            //         // NEW 5 NON-REDUNDANT FEATURES
+            //         double requiredCycles = task.getCloudletLength();
+            //         double dataSize = task.getCloudletFileSize() + task.getCloudletOutputSize();
+
+            //         if (offlineDNN != null) {
+            //             for (int serverId : topServers) {
+            //                 try {
+            //                     double[] rawFeatures = new double[] { requiredCycles, dataSize, serverId, edgeUtilization, wanBW };
+            //                     INDArray inputVector = org.nd4j.linalg.factory.Nd4j.create(rawFeatures).reshape(1, 5);
+            //                     INDArray prediction = offlineDNN.output(inputVector);
+                                
+            //                     double predictedDelay = prediction.getDouble(0); 
+            //                     if (predictedDelay < bestPredictedDelay) {
+            //                         bestPredictedDelay = predictedDelay;
+            //                         dnnBestServer = serverId;
+            //                     }
+            //                 } catch (Exception e) {}
+            //             }
+            //         }
+
+            //         DeepEdgeState currentState = GetFeaturesForAgent(task);
+            //         INDArray output = m_agent.output(currentState.getState());
+            //         int ddqnProposedServer = output.argMax().getInt();
+
+            //         if (topServers.contains(ddqnProposedServer) || ddqnProposedServer == SimSettings.CLOUD_DATACENTER_ID) {
+            //             result = ddqnProposedServer;
+            //         } else {
+            //             result = dnnBestServer;
+            //         }
+                    
+            //         // Log to Memory
+            //         double[] featuresToSave = new double[] { requiredCycles, dataSize, result, edgeUtilization, wanBW };
+            //         taskLog.add(new TaskRecord(task, featuresToSave, bestPredictedDelay, result));
+
+            //         if (result == SimSettings.CLOUD_DATACENTER_ID) numberOfWanOffloadedTask++;
+            //         else if(task.getSubmittedLocation().getServingWlanId() == result) numberOfWlanOffloadedTask++;
+            //         else numberOfManOffloadedTask++;
+            //     }
+
+            // }
             else if(policy.equals("NETWORK_BASED")){
                 if(wanBW > 6) result = SimSettings.CLOUD_DATACENTER_ID;
                 else result = SimSettings.GENERIC_EDGE_DEVICE_ID;
@@ -415,7 +446,7 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
     public void shutdownEntity() {
         SimLogger.printLine("💾 Saving actual DNN training data to CSV...");
         try {
-            PrintWriter writer = new PrintWriter(new FileWriter("real_dnn_training_data.csv"));
+            PrintWriter writer = new PrintWriter(new FileWriter("real_dnn_training.csv"));
             // 5 Features + Predict + Actual
             writer.println("taskId,requiredCycles,dataSize,serverId,edgeUtilization,wanBW,predictedDelay,actualDelay");
 
