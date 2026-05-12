@@ -1,8 +1,7 @@
 package edu.boun.edgecloudsim.applications.deepLearning;
 
 import java.io.File;
-import java.io.FileWriter;
-import java.io.PrintWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,7 +33,7 @@ import org.nd4j.linalg.api.ndarray.INDArray;
 
 public class DeepEdgeOrchestrator extends EdgeOrchestrator {
 
-    public static final double MAX_DATA_SIZE = 2500;
+    public static final double MAX_DATA_SIZE=2500;
 
     private int numberOfHost; 
     private FIS fis1 = null;
@@ -51,29 +50,13 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
     private int counter = 0;
     private final int EPISODE_SIZE = 75000;
 
-    // ==================== S-HEO MOBILITY PRE-RANKING ====================
+    // ==================== S-HEO MOBILITY ====================
     private static final boolean MOBILITY_PRERANKING = true;
     private static final int HISTORY_WINDOW = 3;
     private Map<Integer, List<Location>> userPositionHistory = new HashMap<>();
 
-    // ==================== OFFLINE DNN (S-HEO) ====================
+    // ==================== OFFLINE DNN ====================
     private MultiLayerNetwork offlineDNN = null;
-
-    // ==================== IN-MEMORY DATA COLLECTION ====================
-    private class TaskRecord {
-        Task task;
-        double[] features;
-        double predictedDelay;
-        int chosenServer;
-
-        public TaskRecord(Task t, double[] f, double pDelay, int server) {
-            this.task = t;
-            this.features = f;
-            this.predictedDelay = pDelay;
-            this.chosenServer = server;
-        }
-    }
-    private List<TaskRecord> taskLog = new ArrayList<>();
 
     public DeepEdgeOrchestrator (String _policy, String _simScenario) {
         super(_policy, _simScenario);
@@ -92,19 +75,19 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
             System.exit(0);
         }
 
-        if (policy.equals("DDQN")) {
+        // Initialize Deep Learning models for all AI-based policies
+        if (policy.equals("SHO") || policy.equals("DDQN") || policy.equals("PURE_DDQN") || policy.equals("DDQN_MOB_ONLY")) {
             try {
-                // Load Online DDQN
                 final String absolutePath = "TheModel";
                 m_agent = MultiLayerNetwork.load(new File(absolutePath), false);
 
-                // Build 5-to-1 Offline DNN Architecture
                 org.deeplearning4j.nn.conf.MultiLayerConfiguration conf = new org.deeplearning4j.nn.conf.NeuralNetConfiguration.Builder()
                     .seed(123)
                     .list()
-                    .layer(0, new org.deeplearning4j.nn.conf.layers.DenseLayer.Builder().nIn(5).nOut(64).activation(org.nd4j.linalg.activations.Activation.RELU).build())
-                    .layer(1, new org.deeplearning4j.nn.conf.layers.DenseLayer.Builder().nIn(64).nOut(32).activation(org.nd4j.linalg.activations.Activation.RELU).build())
-                    .layer(2, new org.deeplearning4j.nn.conf.layers.OutputLayer.Builder().nIn(32).nOut(1).activation(org.nd4j.linalg.activations.Activation.IDENTITY)
+                    .layer(0, new org.deeplearning4j.nn.conf.layers.DenseLayer.Builder().nIn(4).nOut(128).activation(org.nd4j.linalg.activations.Activation.RELU).build())
+                    .layer(1, new org.deeplearning4j.nn.conf.layers.DenseLayer.Builder().nIn(128).nOut(64).activation(org.nd4j.linalg.activations.Activation.RELU).build())
+                    .layer(2, new org.deeplearning4j.nn.conf.layers.DenseLayer.Builder().nIn(64).nOut(32).activation(org.nd4j.linalg.activations.Activation.RELU).build())
+                    .layer(3, new org.deeplearning4j.nn.conf.layers.OutputLayer.Builder().nIn(32).nOut(1).activation(org.nd4j.linalg.activations.Activation.IDENTITY)
                         .lossFunction(org.nd4j.linalg.lossfunctions.LossFunctions.LossFunction.MSE).build())
                     .build();
 
@@ -114,19 +97,19 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
                 String path = "models/models/"; 
                 if (!new File(path + "param_0.csv").exists()) path = "models/";
                 
-                SimLogger.printLine("😊 Loading 5-Feature CSV weights from: " + path);
+                SimLogger.printLine("😊 Loading Deep weights for AI Policy: " + policy);
 
-                offlineDNN.getLayer(0).setParam("W", loadCSV(path + "param_0.csv", 5, 64));
-                offlineDNN.getLayer(0).setParam("b", loadCSV(path + "param_1.csv", 1, 64));
-                offlineDNN.getLayer(1).setParam("W", loadCSV(path + "param_2.csv", 64, 32));
-                offlineDNN.getLayer(1).setParam("b", loadCSV(path + "param_3.csv", 1, 32));
-                offlineDNN.getLayer(2).setParam("W", loadCSV(path + "param_4.csv", 32, 1));
-                offlineDNN.getLayer(2).setParam("b", loadCSV(path + "param_5.csv", 1, 1));
-
-                SimLogger.printLine("✅ S-HEO Offline DNN Loaded Successfully!");
+                offlineDNN.getLayer(0).setParam("W", loadCSV(path + "param_0.csv", 4, 128));
+                offlineDNN.getLayer(0).setParam("b", loadCSV(path + "param_1.csv", 1, 128));
+                offlineDNN.getLayer(1).setParam("W", loadCSV(path + "param_2.csv", 128, 64));
+                offlineDNN.getLayer(1).setParam("b", loadCSV(path + "param_3.csv", 1, 64));
+                offlineDNN.getLayer(2).setParam("W", loadCSV(path + "param_4.csv", 64, 32));
+                offlineDNN.getLayer(2).setParam("b", loadCSV(path + "param_5.csv", 1, 32));
+                offlineDNN.getLayer(3).setParam("W", loadCSV(path + "param_6.csv", 32, 1));
+                offlineDNN.getLayer(3).setParam("b", loadCSV(path + "param_7.csv", 1, 1));
 
             } catch (Exception e) {
-                SimLogger.printLine("❌ Failed to initialize models! Will run baseline only.");
+                SimLogger.printLine("❌ Failed to initialize models!");
             }
         }
     }
@@ -142,6 +125,17 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
         return org.nd4j.linalg.factory.Nd4j.create(data).reshape(rows, cols);
     } 
 
+    private double getServerUtil(int serverId) {
+        if (serverId == SimSettings.CLOUD_DATACENTER_ID) return 0.0;
+        List<EdgeVM> vmArray = SimManager.getInstance().getEdgeServerManager().getVmList(serverId);
+        if (vmArray == null || vmArray.isEmpty()) return 0.0;
+        double totalU = 0;
+        for(EdgeVM vm : vmArray) {
+            totalU += vm.getCloudletScheduler().getTotalUtilizationOfCpu(CloudSim.clock());
+        }
+        return totalU / vmArray.size();
+    }
+
     @Override
     public int getDeviceToOffload(Task task) {
         int result = 0;
@@ -156,105 +150,133 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
             double wanDelay = SimManager.getInstance().getNetworkModel().getUploadDelay(task.getMobileDeviceId(),
                     SimSettings.CLOUD_DATACENTER_ID, dummyTask);
             double wanBW = (wanDelay == 0) ? 0 : (1 / wanDelay); 
-            
-            if(policy.equals("DDQN")){
+
+            // =========================================================
+            // POLICY 1: SHO (S-HEO - The Ultimate Trust but Verify AI)
+            // =========================================================
+            if(policy.equals("SHO") || policy.equals("DDQN")){
                 counter++;
                 if (counter > EPISODE_SIZE){
                     if(wanBW > 6) result = SimSettings.CLOUD_DATACENTER_ID;
                     else result = SimSettings.GENERIC_EDGE_DEVICE_ID;
                 } else {
-                    // =========================================================
-                    // TEMPORARY "PURE DDQN" DATA COLLECTOR
-                    // We are letting the agent run free to collect rich data!
-                    // =========================================================
-                    // 1. Ask the DDQN Agent
+                    List<Integer> candidateServers = new ArrayList<>();
+                    for(int i=0; i<numberOfHost; i++) candidateServers.add(i);
+
+                    List<Integer> rankedServers = preRankServersByMobility(task.getMobileDeviceId(), candidateServers);
+                    int topK = Math.max(1, rankedServers.size() - 3); 
+                    List<Integer> topServers = new ArrayList<>(rankedServers.subList(0, topK));
+                    topServers.add(SimSettings.CLOUD_DATACENTER_ID);
+
+                    double bestPredictedDelay = Double.MAX_VALUE;
+                    int dnnBestServer = SimSettings.CLOUD_DATACENTER_ID; 
+                    double requiredCycles = task.getCloudletLength();
+
+                    if (offlineDNN != null) {
+                        for (int serverId : topServers) {
+                            if (serverId == SimSettings.CLOUD_DATACENTER_ID) continue; 
+                            try {
+                                double specificUtil = getServerUtil(serverId);
+                                double scaledCycles = (requiredCycles - 9322.54576) / 13131.2651;
+                                double scaledServerId = (serverId - 7.61385408) / 4.58975022;
+                                double scaledUtilization = (specificUtil - 67.7279929) / 22.8949912;
+                                double scaledWanBW = (wanBW - 8.87701265) / 6.28465073;
+                                double[] scaledFeatures = new double[] { scaledCycles, scaledServerId, scaledUtilization, scaledWanBW };
+                                INDArray inputVector = org.nd4j.linalg.factory.Nd4j.create(scaledFeatures).reshape(1, 4);
+                                
+                                double predictedDelay = offlineDNN.output(inputVector).getDouble(0); 
+                                if (predictedDelay < bestPredictedDelay) {
+                                    bestPredictedDelay = predictedDelay;
+                                    dnnBestServer = serverId;
+                                }
+                            } catch (Exception e) {}
+                        }
+                    }
+
                     DeepEdgeState currentState = GetFeaturesForAgent(task);
                     INDArray output = m_agent.output(currentState.getState());
                     int ddqnProposedServer = output.argMax().getInt();
-                    
-                    // 2. Trust the DDQN completely (No S-HEO safety net for now)
-                    result = ddqnProposedServer;
-                    
-                    // 3. Log the rich 5 features to memory! (predictedDelay is 0.0 for now)
-                    double requiredCycles = task.getCloudletLength();
-                    double dataSize = task.getCloudletFileSize() + task.getCloudletOutputSize();
-                    double[] featuresToSave = new double[] { requiredCycles, dataSize, result, edgeUtilization, wanBW };
-                    
-                    taskLog.add(new TaskRecord(task, featuresToSave, 0.0, result));
 
-                    // 4. Standard Counters
+                    if (topServers.contains(ddqnProposedServer)) {
+                        if (ddqnProposedServer == SimSettings.CLOUD_DATACENTER_ID) {
+                            result = ddqnProposedServer; 
+                        } else {
+                            double ddqnExpectedDelay = Double.MAX_VALUE;
+                            if (offlineDNN != null) {
+                                try {
+                                    double specificUtil = getServerUtil(ddqnProposedServer);
+                                    double scaledCycles = (requiredCycles - 9322.54576) / 13131.2651;
+                                    double scaledServerId = (ddqnProposedServer - 7.61385408) / 4.58975022;
+                                    double scaledUtilization = (specificUtil - 67.7279929) / 22.8949912;
+                                    double scaledWanBW = (wanBW - 8.87701265) / 6.28465073;
+                                    double[] scaledFeatures = new double[] { scaledCycles, scaledServerId, scaledUtilization, scaledWanBW };
+                                    INDArray inputVector = org.nd4j.linalg.factory.Nd4j.create(scaledFeatures).reshape(1, 4);
+                                    ddqnExpectedDelay = offlineDNN.output(inputVector).getDouble(0);
+                                } catch (Exception e) {}
+                            }
+                            if (bestPredictedDelay < (ddqnExpectedDelay - 0.2)) {
+                                result = dnnBestServer; 
+                            } else {
+                                result = ddqnProposedServer; 
+                            }
+                        }
+                    } else {
+                        result = dnnBestServer;
+                    }
+
                     if (result == SimSettings.CLOUD_DATACENTER_ID) numberOfWanOffloadedTask++;
                     else if(task.getSubmittedLocation().getServingWlanId() == result) numberOfWlanOffloadedTask++;
                     else numberOfManOffloadedTask++;
                 }
             }
-            // if(policy.equals("DDQN")){
-            //     counter++;
-            //     if (counter > EPISODE_SIZE){
-            //         if(wanBW > 6) result = SimSettings.CLOUD_DATACENTER_ID;
-            //         else result = SimSettings.GENERIC_EDGE_DEVICE_ID;
-            //     } else {
-            //         List<Integer> candidateServers = new ArrayList<>();
-            //         for(int i=0; i<numberOfHost; i++) candidateServers.add(i);
-            //         candidateServers.add(SimSettings.CLOUD_DATACENTER_ID);
-                    
-            //         List<Integer> rankedServers = preRankServersByMobility(task.getMobileDeviceId(), candidateServers);
-            //         int topK = Math.min(3, rankedServers.size());
-            //         List<Integer> topServers = rankedServers.subList(0, topK);
-                    
-            //         double bestPredictedDelay = Double.MAX_VALUE;
-            //         int dnnBestServer = SimSettings.CLOUD_DATACENTER_ID; 
-                    
-            //         // NEW 5 NON-REDUNDANT FEATURES
-            //         double requiredCycles = task.getCloudletLength();
-            //         double dataSize = task.getCloudletFileSize() + task.getCloudletOutputSize();
+            // =========================================================
+            // POLICY 2: PURE_DDQN (Raw Agent, No Safety Nets)
+            // =========================================================
+            else if (policy.equals("PURE_DDQN")) {
+                DeepEdgeState currentState = GetFeaturesForAgent(task);
+                INDArray output = m_agent.output(currentState.getState());
+                result = output.argMax().getInt();
+                
+                if (result == SimSettings.CLOUD_DATACENTER_ID) numberOfWanOffloadedTask++;
+                else if(task.getSubmittedLocation().getServingWlanId() == result) numberOfWlanOffloadedTask++;
+                else numberOfManOffloadedTask++;
+            }
+            // =========================================================
+            // POLICY 3: DDQN_MOB_ONLY (Agent + Mobility Safety Net)
+            // =========================================================
+            else if(policy.equals("DDQN_MOB_ONLY")){
+                List<Integer> candidateServers = new ArrayList<>();
+                for(int i=0; i<numberOfHost; i++) candidateServers.add(i);
+                
+                List<Integer> rankedServers = preRankServersByMobility(task.getMobileDeviceId(), candidateServers);
+                int topK = Math.max(1, rankedServers.size() - 3);
+                List<Integer> topServers = new ArrayList<>(rankedServers.subList(0, topK));
+                topServers.add(SimSettings.CLOUD_DATACENTER_ID);
 
-            //         if (offlineDNN != null) {
-            //             for (int serverId : topServers) {
-            //                 try {
-            //                     double[] rawFeatures = new double[] { requiredCycles, dataSize, serverId, edgeUtilization, wanBW };
-            //                     INDArray inputVector = org.nd4j.linalg.factory.Nd4j.create(rawFeatures).reshape(1, 5);
-            //                     INDArray prediction = offlineDNN.output(inputVector);
-                                
-            //                     double predictedDelay = prediction.getDouble(0); 
-            //                     if (predictedDelay < bestPredictedDelay) {
-            //                         bestPredictedDelay = predictedDelay;
-            //                         dnnBestServer = serverId;
-            //                     }
-            //                 } catch (Exception e) {}
-            //             }
-            //         }
+                DeepEdgeState currentState = GetFeaturesForAgent(task);
+                INDArray output = m_agent.output(currentState.getState());
+                int ddqnProposedServer = output.argMax().getInt();
 
-            //         DeepEdgeState currentState = GetFeaturesForAgent(task);
-            //         INDArray output = m_agent.output(currentState.getState());
-            //         int ddqnProposedServer = output.argMax().getInt();
-
-            //         if (topServers.contains(ddqnProposedServer) || ddqnProposedServer == SimSettings.CLOUD_DATACENTER_ID) {
-            //             result = ddqnProposedServer;
-            //         } else {
-            //             result = dnnBestServer;
-            //         }
-                    
-            //         // Log to Memory
-            //         double[] featuresToSave = new double[] { requiredCycles, dataSize, result, edgeUtilization, wanBW };
-            //         taskLog.add(new TaskRecord(task, featuresToSave, bestPredictedDelay, result));
-
-            //         if (result == SimSettings.CLOUD_DATACENTER_ID) numberOfWanOffloadedTask++;
-            //         else if(task.getSubmittedLocation().getServingWlanId() == result) numberOfWlanOffloadedTask++;
-            //         else numberOfManOffloadedTask++;
-            //     }
-
-            // }
+                if (topServers.contains(ddqnProposedServer)) {
+                    result = ddqnProposedServer; 
+                } else {
+                    if(!topServers.isEmpty()){
+                         result = topServers.get(0); 
+                    } else {
+                         result = SimSettings.CLOUD_DATACENTER_ID;
+                    }
+                }
+                
+                if (result == SimSettings.CLOUD_DATACENTER_ID) numberOfWanOffloadedTask++;
+                else if(task.getSubmittedLocation().getServingWlanId() == result) numberOfWlanOffloadedTask++;
+                else numberOfManOffloadedTask++;
+            }
+            // =========================================================
+            // STANDARD BASELINES
+            // =========================================================
             else if(policy.equals("NETWORK_BASED")){
                 if(wanBW > 6) result = SimSettings.CLOUD_DATACENTER_ID;
                 else result = SimSettings.GENERIC_EDGE_DEVICE_ID;
-
-                // Log Baseline Ground Truth to Memory
-                double requiredCycles = task.getCloudletLength();
-                double dataSize = task.getCloudletFileSize() + task.getCloudletOutputSize();
-                double[] featuresToSave = new double[] { requiredCycles, dataSize, result, edgeUtilization, wanBW };
-                
-                taskLog.add(new TaskRecord(task, featuresToSave, 0.0, result));
             }
             else if(policy.equals("FUZZY_COMPETITOR")){
                 double utilization = edgeUtilization;
@@ -284,27 +306,20 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
         return result;
     }
 
-
     public DeepEdgeState GetFeaturesForAgent(Task task){
         Task dummyTask = new Task(0, 0, 0, 0, 128, 128, new UtilizationModelFull(), new UtilizationModelFull(), new UtilizationModelFull());
-
         DeepEdgeState currentState = new DeepEdgeState();
         ArrayList<Double> edgeCapacities = new ArrayList<>();
-
         int numberOfHost = SimSettings.getInstance().getNumOfEdgeHosts();
 
         double wanDelay = SimManager.getInstance().getNetworkModel().getUploadDelay(task.getMobileDeviceId(),
-                SimSettings.CLOUD_DATACENTER_ID, dummyTask /* 1 Mbit */);
-
-        double wanBW = (wanDelay == 0) ? 0 : (1 / wanDelay); /* Mbps */
-
+                SimSettings.CLOUD_DATACENTER_ID, dummyTask);
+        double wanBW = (wanDelay == 0) ? 0 : (1 / wanDelay); 
         currentState.setWanBw(wanBW/20.21873);
 
         double manDelayF = SimManager.getInstance().getNetworkModel().getUploadDelayForTraining(SimSettings.GENERIC_EDGE_DEVICE_ID,
                 SimSettings.GENERIC_EDGE_DEVICE_ID, dummyTask );
-
         double manBW = (manDelayF == 0) ? 0 : (1 / manDelayF);
-
 
         double manDelay = getManDelayForAgent();
         currentState.setManDelay(manDelay);
@@ -317,10 +332,9 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
 
         int nearestEdgeHostId = 0;
 
-
         for(int hostIndex=0; hostIndex<numberOfHost; hostIndex++){
             List<EdgeVM> vmArray = SimManager.getInstance().getEdgeServerManager().getVmList(hostIndex);
-            EdgeHost host = (EdgeHost)(vmArray.get(0).getHost()); //all VMs have the same host
+            EdgeHost host = (EdgeHost)(vmArray.get(0).getHost()); 
 
             double totalUtilizationForEdgeServer=0;
             for(int vmIndex=0; vmIndex<vmArray.size(); vmIndex++){
@@ -331,22 +345,17 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
             double averageCapacity = (totalCapacity - totalUtilizationForEdgeServer)  / vmArray.size();
             double normalizedCapacity = averageCapacity / 100;
 
-            if (normalizedCapacity < 0){
-                normalizedCapacity = 0;
-            }
+            if (normalizedCapacity < 0) normalizedCapacity = 0;
             edgeCapacities.add(normalizedCapacity);
 
             if (host.getLocation().getServingWlanId() == task.getSubmittedLocation().getServingWlanId()){
                 nearestEdgeHostId = hostIndex;
             }
-
         }
 
         currentState.setAvailVmInEdge(edgeCapacities);
         currentState.setNearestEdgeHostId((double)nearestEdgeHostId / numberOfHost);
-
         double delay_sensitivity = SimSettings.getInstance().getTaskLookUpTable()[task.getTaskType()][12];
-
         currentState.setDelaySensitivity(delay_sensitivity);
 
         currentState.setNumberOfWlanOffloadedTask(numberOfWlanOffloadedTask/EPISODE_SIZE);
@@ -355,16 +364,14 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
         currentState.setActiveManTaskCount(activeManTaskCount/25);
         currentState.setActiveWanTaskCount(activeWanTaskCount/25);
 
-
         return currentState;
-
     }
 
     public double getManDelayForAgent(){
         double delay = 0;
         double mu = 0;
         double lambda = 0;
-        double bandwidth = 1300*1024; //Kbps , C
+        double bandwidth = 1300*1024; 
 
         if (totalSizeOfActiveManTasks == 0){
             mu = bandwidth;
@@ -374,7 +381,6 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
 
         lambda = activeManTaskCount;
 
-
         if (lambda >= mu){
             return 0;
         }else{
@@ -383,14 +389,12 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
         }
     }
 
-
     @Override
     public Vm getVmToOffload(Task task, int deviceId) {
         Vm selectedVM = null;
 
         if(deviceId == SimSettings.CLOUD_DATACENTER_ID){
-            //Select VM on cloud devices via Least Loaded algorithm!
-            double selectedVmCapacity = 0; //start with min value
+            double selectedVmCapacity = 0; 
             List<Host> list = SimManager.getInstance().getCloudServerManager().getDatacenter().getHostList();
             for (int hostIndex=0; hostIndex < list.size(); hostIndex++) {
                 List<CloudVM> vmArray = SimManager.getInstance().getCloudServerManager().getVmList(hostIndex);
@@ -405,8 +409,7 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
             }
         }
         else if(deviceId == SimSettings.GENERIC_EDGE_DEVICE_ID){
-            //Select VM on edge devices via Least Loaded algorithm!
-            double selectedVmCapacity = 0; //start with min value
+            double selectedVmCapacity = 0; 
             for(int hostIndex=0; hostIndex<numberOfHost; hostIndex++){
                 List<EdgeVM> vmArray = SimManager.getInstance().getEdgeServerManager().getVmList(hostIndex);
                 for(int vmIndex=0; vmIndex<vmArray.size(); vmIndex++){
@@ -420,11 +423,8 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
             }
         }
         else{
-            //if the host is specifically defined!
             List<EdgeVM> vmArray = SimManager.getInstance().getEdgeServerManager().getVmList(deviceId);
-
-            //Select VM on edge devices via Least Loaded algorithm!
-            double selectedVmCapacity = 0; //start with min value
+            double selectedVmCapacity = 0; 
             for(int vmIndex=0; vmIndex<vmArray.size(); vmIndex++){
                 double requiredCapacity = ((CpuUtilizationModel_Custom)task.getUtilizationModelCpu()).predictUtilization(vmArray.get(vmIndex).getVmType());
                 double targetVmCapacity = (double)100 - vmArray.get(vmIndex).getCloudletScheduler().getTotalUtilizationOfCpu(CloudSim.clock());
@@ -433,59 +433,39 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
                     selectedVmCapacity = targetVmCapacity;
                 }
             }
+            
+            // FAIRNESS FALLBACK
+            if (selectedVM == null) {
+                for(int hostIndex=0; hostIndex<numberOfHost; hostIndex++){
+                    List<EdgeVM> fallbackArray = SimManager.getInstance().getEdgeServerManager().getVmList(hostIndex);
+                    for(int vmIndex=0; vmIndex<fallbackArray.size(); vmIndex++){
+                        double requiredCapacity = ((CpuUtilizationModel_Custom)task.getUtilizationModelCpu()).predictUtilization(fallbackArray.get(vmIndex).getVmType());
+                        double targetVmCapacity = (double)100 - fallbackArray.get(vmIndex).getCloudletScheduler().getTotalUtilizationOfCpu(CloudSim.clock());
+                        if(requiredCapacity <= targetVmCapacity && targetVmCapacity > selectedVmCapacity){
+                            selectedVM = fallbackArray.get(vmIndex);
+                            selectedVmCapacity = targetVmCapacity;
+                        }
+                    }
+                }
+            }
         }
         return selectedVM;
     }
 
     @Override
-    public void processEvent(SimEvent arg0) {
-        // Nothing to do!
-    }
+    public void processEvent(SimEvent arg0) {}
 
     @Override
-    public void shutdownEntity() {
-        SimLogger.printLine("💾 Saving actual DNN training data to CSV...");
-        try {
-            PrintWriter writer = new PrintWriter(new FileWriter("real_dnn_training.csv"));
-            // 5 Features + Predict + Actual
-            writer.println("taskId,requiredCycles,dataSize,serverId,edgeUtilization,wanBW,predictedDelay,actualDelay");
-
-            for (TaskRecord record : taskLog) {
-                if (record.task.getCloudletStatus() == org.cloudbus.cloudsim.Cloudlet.SUCCESS) {
-                    double actualDelay = record.task.getFinishTime() - record.task.getSubmissionTime();
-                    
-                    StringBuilder sb = new StringBuilder();
-                    sb.append(record.task.getCloudletId()).append(",");
-                    sb.append(record.features[0]).append(","); // requiredCycles
-                    sb.append(record.features[1]).append(","); // dataSize
-                    sb.append(record.chosenServer).append(",");
-                    sb.append(record.features[3]).append(","); // edgeUtilization
-                    sb.append(record.features[4]).append(","); // wanBW
-                    sb.append(record.predictedDelay).append(","); 
-                    sb.append(actualDelay);
-
-                    writer.println(sb.toString());
-                }
-            }
-            writer.flush();
-            writer.close();
-            SimLogger.printLine("✅ Real dataset saved as real_dnn_training_data.csv!");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
+    public void shutdownEntity() {}
 
     @Override
-    public void startEntity() {
-        // Nothing to do!
-    }
+    public void startEntity() {}
 
     private List<Integer> preRankServersByMobility(int deviceId, List<Integer> candidateServers) {
         if (!MOBILITY_PRERANKING || candidateServers.isEmpty()) {
-            return candidateServers;   // flag OFF = original DeepEdge behavior
+            return candidateServers; 
         }
 
-        // Minimal version: only direction bonus (compiles and works)
         MobilityModel mobilityModel = SimManager.getInstance().getMobilityModel();
         Location currentLoc = mobilityModel.getLocation(deviceId, CloudSim.clock());
 
@@ -508,14 +488,20 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
         List<ServerScore> scored = new ArrayList<>();
         for (int serverId : candidateServers) {
             double score = 0.0;
-            if (dx != 0 || dy != 0) {
-                double dot = dx * (0 - currentX) + dy * (0 - currentY);
-                score = (dot > 0) ? 0.3 : -0.2;
+            if (serverId != SimSettings.CLOUD_DATACENTER_ID) {
+                Host host = SimManager.getInstance().getEdgeServerManager().getVmList(serverId).get(0).getHost();
+                Location hostLoc = ((EdgeHost)host).getLocation();
+                if (dx != 0 || dy != 0) {
+                    double dot = dx * (hostLoc.getXPos() - currentX) + dy * (hostLoc.getYPos() - currentY);
+                    score = dot; 
+                }
+            } else {
+                score = Double.MAX_VALUE; 
             }
             scored.add(new ServerScore(serverId, score));
         }
 
-        scored.sort((a, b) -> Double.compare(a.score, b.score));
+        scored.sort((a, b) -> Double.compare(b.score, a.score));
         List<Integer> ranked = new ArrayList<>();
         for (ServerScore s : scored) ranked.add(s.serverId);
         return ranked;
@@ -526,5 +512,4 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
         double score;
         ServerScore(int id, double s) { serverId = id; score = s; }
     }
-
 }
