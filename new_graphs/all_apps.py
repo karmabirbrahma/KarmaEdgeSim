@@ -4,10 +4,10 @@ import glob
 import matplotlib.pyplot as plt
 
 # --- CONFIGURATION ---
-TARGET_DIR = "../sim_results/ite20" # Change this to the folder containing your final logs
+TARGET_DIR = "../sim_results/ite21" # Change this to the folder containing your final logs
 
 # NEW: The folder where you want to save the generated graphs
-OUTPUT_DIR = "thesis_graphs/ite20" 
+OUTPUT_DIR = "thesis_graphs/ite21" 
 
 # Added _GENERIC to all files to match EdgeCloudSim's exact naming format
 APPS_TO_PLOT = [
