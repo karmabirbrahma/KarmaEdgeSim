@@ -53,7 +53,7 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
     // ==================== S-HEO CONSTANTS ====================
     // [CHANGED] Lowered from 95.0 → 75.0 to avoid routing into near-saturated
     // servers before they trigger failures. At 95%, a server is already overloaded.
-    private static final double UTIL_CAP = 75.0;
+    private static final double UTIL_CAP = 80.0;
 
     // ==================== S-HEO MOBILITY ====================
     private static final boolean MOBILITY_PRERANKING = true;
