@@ -166,17 +166,19 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
                     List<Integer> rankedServers = preRankServersByMobility(task.getMobileDeviceId(), candidateServers);
                     int topK = Math.max(1, rankedServers.size() - 3); 
                     List<Integer> topServers = new ArrayList<>(rankedServers.subList(0, topK));
-                    topServers.add(SimSettings.CLOUD_DATACENTER_ID);
+                    
+                    // Note: We leave the Cloud off the topServers list so the DNN doesn't accidentally pick it!
 
                     double bestPredictedDelay = Double.MAX_VALUE;
-                    int dnnBestServer = SimSettings.CLOUD_DATACENTER_ID; 
+                    int dnnBestServer = topServers.isEmpty() ? SimSettings.CLOUD_DATACENTER_ID : topServers.get(0); 
                     double requiredCycles = task.getCloudletLength();
 
                     if (offlineDNN != null) {
                         for (int serverId : topServers) {
-                            if (serverId == SimSettings.CLOUD_DATACENTER_ID) continue; 
                             try {
                                 double specificUtil = getServerUtil(serverId);
+                                if (specificUtil > 95.0) continue; 
+                                
                                 double scaledCycles = (requiredCycles - 9322.54576) / 13131.2651;
                                 double scaledServerId = (serverId - 7.61385408) / 4.58975022;
                                 double scaledUtilization = (specificUtil - 67.7279929) / 22.8949912;
@@ -197,30 +199,42 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
                     INDArray output = m_agent.output(currentState.getState());
                     int ddqnProposedServer = output.argMax().getInt();
 
-                    if (topServers.contains(ddqnProposedServer)) {
-                        if (ddqnProposedServer == SimSettings.CLOUD_DATACENTER_ID) {
-                            result = ddqnProposedServer; 
+                    // If DDQN actively asks for the Cloud, let it go.
+                    if (ddqnProposedServer == SimSettings.CLOUD_DATACENTER_ID) {
+                        result = ddqnProposedServer; 
+                    } 
+                    // If DDQN picks an Edge Server that is safe from mobility...
+                    else if (topServers.contains(ddqnProposedServer)) {
+                        double ddqnServerUtil = getServerUtil(ddqnProposedServer);
+                        
+                        // If that server is melting, override to the DNN's best Edge server.
+                        if (ddqnServerUtil > 95.0) {
+                            result = dnnBestServer;
                         } else {
+                            // Let the DDQN have its choice unless the DNN is highly confident 
+                            // that another Edge server is significantly faster (0.3s threshold).
                             double ddqnExpectedDelay = Double.MAX_VALUE;
                             if (offlineDNN != null) {
                                 try {
-                                    double specificUtil = getServerUtil(ddqnProposedServer);
                                     double scaledCycles = (requiredCycles - 9322.54576) / 13131.2651;
                                     double scaledServerId = (ddqnProposedServer - 7.61385408) / 4.58975022;
-                                    double scaledUtilization = (specificUtil - 67.7279929) / 22.8949912;
+                                    double scaledUtilization = (ddqnServerUtil - 67.7279929) / 22.8949912;
                                     double scaledWanBW = (wanBW - 8.87701265) / 6.28465073;
                                     double[] scaledFeatures = new double[] { scaledCycles, scaledServerId, scaledUtilization, scaledWanBW };
                                     INDArray inputVector = org.nd4j.linalg.factory.Nd4j.create(scaledFeatures).reshape(1, 4);
                                     ddqnExpectedDelay = offlineDNN.output(inputVector).getDouble(0);
                                 } catch (Exception e) {}
                             }
-                            if (bestPredictedDelay < (ddqnExpectedDelay - 0.2)) {
+                            
+                            if (bestPredictedDelay < (ddqnExpectedDelay - 0.05)) {
                                 result = dnnBestServer; 
                             } else {
                                 result = ddqnProposedServer; 
                             }
                         }
                     } else {
+                        // The DDQN picked an Edge Server the user is walking away from.
+                        // Force it to the best SAFE Edge server.
                         result = dnnBestServer;
                     }
 
@@ -230,7 +244,7 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
                 }
             }
             // =========================================================
-            // POLICY 2: PURE_DDQN (Raw Agent, No Safety Nets)
+            // POLICY 2: PURE_DDQN
             // =========================================================
             else if (policy.equals("PURE_DDQN")) {
                 DeepEdgeState currentState = GetFeaturesForAgent(task);
@@ -242,7 +256,7 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
                 else numberOfManOffloadedTask++;
             }
             // =========================================================
-            // POLICY 3: DDQN_MOB_ONLY (Agent + Mobility Safety Net)
+            // POLICY 3: DDQN_MOB_ONLY
             // =========================================================
             else if(policy.equals("DDQN_MOB_ONLY")){
                 List<Integer> candidateServers = new ArrayList<>();

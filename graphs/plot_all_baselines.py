@@ -4,7 +4,7 @@ import glob
 import matplotlib.pyplot as plt
 
 # CHANGE THIS to your final results folder!
-TARGET_DIR = "../sim_results/ite15"
+TARGET_DIR = "../sim_results/ite18"
 
 def main():
     print(f"Scanning directory: {TARGET_DIR}...")
@@ -103,8 +103,8 @@ def main():
     ax2.legend(fontsize=11)
 
     plt.tight_layout()
-    plt.savefig("final_7_way_comparison.png", dpi=300)
-    print("🎉 Graph generated successfully! Saved as: thesis_final_7_way_comparison.png")
+    plt.savefig("policy_comparison.png", dpi=300)
+    print("🎉 Graph generated successfully! Saved as: policy_comparison.png")
 
 if __name__ == "__main__":
     main()
