@@ -53,7 +53,7 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
     // ==================== S-HEO CONSTANTS ====================
     // [CHANGED] Lowered from 95.0 → 75.0 to avoid routing into near-saturated
     // servers before they trigger failures. At 95%, a server is already overloaded.
-    private static final double UTIL_CAP = 80.0;
+    private static final double UTIL_CAP = 75.0;
 
     // ==================== S-HEO MOBILITY ====================
     private static final boolean MOBILITY_PRERANKING = true;
@@ -225,7 +225,7 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
                             try {
                                 double specificUtil = getServerUtil(serverId);
 
-                                // [CHANGED] Cap lowered: 95.0 → UTIL_CAP (75.0)
+                                //UTIL_CAP (75.0)
                                 if (specificUtil > UTIL_CAP) continue;
                                 foundValidDnnServer = true;
 
@@ -263,7 +263,7 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
                     else if (topServers.contains(ddqnProposedServer)) {
                         double ddqnServerUtil = getServerUtil(ddqnProposedServer);
 
-                        // [CHANGED] Cap check lowered: 95.0 → UTIL_CAP (75.0)
+                        //UTIL_CAP (75.0)
                         // Override to DNN's best server if DDQN's pick is too hot.
                         if (ddqnServerUtil > UTIL_CAP) {
                             result = dnnBestServer;

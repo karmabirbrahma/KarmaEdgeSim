@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # --- CONFIGURATION ---
 TARGET_DIR = "../sim_results/ite21" # Ensure this points to your log folder
-OUTPUT_DIR = "thesis_graphs/boss" 
+OUTPUT_DIR = "thesis_graphs/done" 
 
 # Apps to process
 APPS_TO_PLOT = [
@@ -21,7 +21,7 @@ POLICIES_TO_PLOT = ['SHO', 'PURE_DDQN', 'DDQN_MOB_ONLY', 'FUZZY_BASED']
 
 # 2. Rename labels exactly as requested
 LABELS = {
-    'SHO': 'SHEO', 
+    'SHO': 'HEO', 
     'PURE_DDQN': 'DDQN', 
     'DDQN_MOB_ONLY': 'DDQN + Mobility', 
     'FUZZY_BASED': 'Fuzzy_Based'
@@ -29,14 +29,14 @@ LABELS = {
 
 # Styling
 COLORS = {
-    'SHO': '#2ca02c', 
+    'HEO': '#2ca02c', 
     'PURE_DDQN': '#9467bd', 
     'DDQN_MOB_ONLY': '#8c564b', 
     'FUZZY_BASED': '#d62728'
 }
 
 MARKERS = {
-    'SHO': 'o', 
+    'HEO': 'o', 
     'PURE_DDQN': 'x', 
     'DDQN_MOB_ONLY': 'v', 
     'FUZZY_BASED': 's'
@@ -154,7 +154,7 @@ def process_and_plot_app(app_name):
         plt.legend(fontsize=12)
         plt.tight_layout()
         
-        output_filename = f"thesis_{file_suffix}_{clean_filename}.png"
+        output_filename = f"{file_suffix}_{clean_filename}.png"
         save_path = os.path.join(OUTPUT_DIR, output_filename)
         plt.savefig(save_path, dpi=300)
         plt.close()

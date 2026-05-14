@@ -5,8 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --- CONFIGURATION ---
-TARGET_DIR = "../sim_results/ite22" # Update to your latest results folder
-OUTPUT_DIR = "thesis_graphs/bar_graph" 
+TARGET_DIR = "../sim_results/ite21" # Update to your latest results folder
+OUTPUT_DIR = "thesis_graphs/done" 
 
 APP_TO_PLOT = "ALL_APPS_GENERIC" # We will use the overall average for the bar chart
 
@@ -82,7 +82,7 @@ def main():
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))
 
     # --- PLOT 1: DELAY ---
-    rects1 = ax1.bar(x - width/2, data['SHO']['delays'], width, label='S-HEO (Our AI)', color='#2ca02c', edgecolor='black')
+    rects1 = ax1.bar(x - width/2, data['SHO']['delays'], width, label='HEO', color='#2ca02c', edgecolor='black')
     rects2 = ax1.bar(x + width/2, data['PURE_DDQN']['delays'], width, label='Pure DDQN', color='#9467bd', edgecolor='black')
 
     ax1.set_title('Average Delay Comparison', fontsize=16, fontweight='bold')
@@ -94,7 +94,7 @@ def main():
     ax1.grid(axis='y', linestyle=':', alpha=0.7)
 
     # --- PLOT 2: FAILURE RATE ---
-    rects3 = ax2.bar(x - width/2, data['SHO']['fails'], width, label='S-HEO (Our AI)', color='#2ca02c', edgecolor='black')
+    rects3 = ax2.bar(x - width/2, data['SHO']['fails'], width, label='HEO', color='#2ca02c', edgecolor='black')
     rects4 = ax2.bar(x + width/2, data['PURE_DDQN']['fails'], width, label='Pure DDQN', color='#9467bd', edgecolor='black')
 
     ax2.set_title('Task Failure Rate Comparison', fontsize=16, fontweight='bold')
@@ -126,7 +126,7 @@ def main():
     plt.tight_layout()
     
     # Save the file
-    output_filename = "SHO_vs_DDQN.png"
+    output_filename = "HEO_vs_DDQN.png"
     save_path = os.path.join(OUTPUT_DIR, output_filename)
     plt.savefig(save_path, dpi=300)
     print(f"🎉 Bar chart generated successfully! Saved as: {save_path}")
