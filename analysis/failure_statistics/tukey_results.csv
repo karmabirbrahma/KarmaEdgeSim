@@ -1,0 +1,7 @@
+group1,group2,meandiff,p-adj,lower,upper,reject
+DDQN,DDQN_Mobility,0.4445,0.3525,-0.263,1.152,False
+DDQN,Fuzzy_Based,0.2751,0.7329,-0.4324,0.9826,False
+DDQN,HEO,0.3916,0.4648,-0.3159,1.0991,False
+DDQN_Mobility,Fuzzy_Based,-0.1694,0.9207,-0.8769,0.5381,False
+DDQN_Mobility,HEO,-0.0529,0.9972,-0.7604,0.6547,False
+Fuzzy_Based,HEO,0.1165,0.972,-0.591,0.824,False

@@ -1,0 +1,8 @@
+One-Way ANOVA
+========================================
+
+F-statistic : 1.100984
+p-value     : 0.356434
+
+Conclusion:
+No statistically significant difference among the algorithms (p >= 0.05).

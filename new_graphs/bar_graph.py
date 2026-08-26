@@ -5,8 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --- CONFIGURATION ---
-TARGET_DIR = "../sim_results/ite21" # Update to your latest results folder
-OUTPUT_DIR = "thesis_graphs/done" 
+TARGET_DIR = "../sim_results/ite30" # Update to your latest results folder
+OUTPUT_DIR = "thesis_graphs/new" 
 
 APP_TO_PLOT = "ALL_APPS_GENERIC" # We will use the overall average for the bar chart
 

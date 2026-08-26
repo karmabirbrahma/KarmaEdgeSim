@@ -225,7 +225,7 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
                             try {
                                 double specificUtil = getServerUtil(serverId);
 
-                                //UTIL_CAP (75.0)
+                                // UTIL_CAP (75.0)
                                 if (specificUtil > UTIL_CAP) continue;
                                 foundValidDnnServer = true;
 
@@ -539,7 +539,9 @@ public class DeepEdgeOrchestrator extends EdgeOrchestrator {
 
         List<Location> history = userPositionHistory.getOrDefault(deviceId, new ArrayList<>());
         history.add(currentLoc);
-        if (history.size() > HISTORY_WINDOW) history.remove(0);
+        if (history.size() > HISTORY_WINDOW) 
+            history.remove(0);
+
         userPositionHistory.put(deviceId, history);
 
         if (history.size() < 2) return candidateServers;

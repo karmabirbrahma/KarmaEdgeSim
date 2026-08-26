@@ -4,8 +4,8 @@ import glob
 import matplotlib.pyplot as plt
 
 # --- CONFIGURATION ---
-TARGET_DIR = "../sim_results/ite21" # Ensure this points to your log folder
-OUTPUT_DIR = "thesis_graphs/done" 
+TARGET_DIR = "../sim_results/ite30" # Ensure this points to your log folder
+OUTPUT_DIR = "thesis_graphs/check" 
 
 # Apps to process
 APPS_TO_PLOT = [

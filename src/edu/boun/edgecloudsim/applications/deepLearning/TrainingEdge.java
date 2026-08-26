@@ -50,11 +50,11 @@ public class TrainingEdge {
 	    if (!directory.exists()) {
         	boolean success = directory.mkdirs(); // .mkdirs() creates parent folders if they are missing too
         	if (success) {
-            	    SimLogger.printLine("Created new directory: " + outputFolder);
+            	SimLogger.printLine("Created new directory: " + outputFolder);
         	} else {
-            	    SimLogger.printLine("Failed to create directory: " + outputFolder);
+            	SimLogger.printLine("Failed to create directory: " + outputFolder);
         	}
-    	    }
+    	}
 	}
         else{
             SimLogger.printLine("Simulation setting file, output folder and iteration number are not provided! Using default ones...");
